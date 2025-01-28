@@ -1,11 +1,4 @@
-#define _DEBUG 1
-
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <iostream>
-#include <string>
-#include <fstream>
-#include <sstream>
+#include <custom.h>
 
 void PrintOpenGLErrors(char const *const Function, char const *const File, int const Line)
 {
@@ -41,7 +34,7 @@ void PrintOpenGLErrors(char const *const Function, char const *const File, int c
     }
 }
 
-#ifdef _DEBUG
+#ifdef OB_DEBUG
 #define CheckedGLCall(x)                                         \
     do                                                           \
     {                                                            \
@@ -122,11 +115,9 @@ int main()
         return -1;
     }
 
-    // Configure GLFW for macOS
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required for macOS
+    // Configure GLFW (OpenGL version 2.1)
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 
     // Create window
     GLFWwindow *window = glfwCreateWindow(640, 480, "Modern OpenGL", NULL, NULL);
@@ -156,39 +147,28 @@ int main()
     // Print OpenGL version
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
-    // Vertex data for triangle
-    GLfloat Vertices[] = {
-        +0.0f,  0.5f,
-        +0.5f, -0.5f,
-        -0.5f, -0.5f
-    };
+    // Init OpenglBase
+    OB_Context *context = OB_InitContext();
 
-    GLuint Elements[] = {
-        0, 1, 2
-    };
-
-    // Create and bind VAO
-    GLuint VAO;
-    CheckedGLCall(glGenVertexArrays(1, &VAO));
-    CheckedGLCall(glBindVertexArray(VAO));
+#ifdef OB_ENABLE_SHADER
 
     // Create and populate vertex buffer
     GLuint VBO;
     CheckedGLCall(glGenBuffers(1, &VBO));
     CheckedGLCall(glBindBuffer(GL_ARRAY_BUFFER, VBO));
-    CheckedGLCall(glBufferData(GL_ARRAY_BUFFER, sizeof(Vertices), Vertices, GL_STATIC_DRAW));
+    CheckedGLCall(glBufferData(GL_ARRAY_BUFFER, context->Vertices.size() * sizeof(GLfloat), context->Vertices.data(), GL_STATIC_DRAW));
 
     // Create and populate element buffer
     GLuint EBO;
     CheckedGLCall(glGenBuffers(1, &EBO));
     CheckedGLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO));
-    CheckedGLCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Elements), Elements, GL_STATIC_DRAW));
+    CheckedGLCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, context->Elements.size() * sizeof(GLfloat), context->Elements.data(), GL_STATIC_DRAW));
 
     // Create and compile vertex shader
-    GLuint VertexShader = CompileShader("shaders/vertex.glsl", GL_VERTEX_SHADER);
+    GLuint VertexShader = CompileShader(OB_VERTSHADER_PATH, GL_VERTEX_SHADER);
 
     // Create and compile fragment shader
-    GLuint FragmentShader = CompileShader("shaders/fragment.glsl", GL_FRAGMENT_SHADER);
+    GLuint FragmentShader = CompileShader(OB_FRAGSHADER_PATH, GL_FRAGMENT_SHADER);
 
     // Create and link shader program
     GLuint ShaderProgram = CheckedGLResult(glCreateProgram());
@@ -202,14 +182,25 @@ int main()
     CheckedGLCall(glEnableVertexAttribArray(PositionAttribute));
     CheckedGLCall(glVertexAttribPointer(PositionAttribute, 2, GL_FLOAT, GL_FALSE, 0, 0));
 
+#endif
+
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
         // Clear the screen
         CheckedGLCall(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
-        // Draw the triangle
+#ifdef OB_ENABLE_SHADER
+
         CheckedGLCall(glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0));
+
+#else
+
+        glBegin(OB_DRAW_MODE);
+        OB_Render(context);
+        glEnd();
+
+#endif
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);
@@ -217,12 +208,13 @@ int main()
     }
 
     // Cleanup
+#ifdef OB_ENABLE_SHADER
     CheckedGLCall(glDeleteProgram(ShaderProgram));
     CheckedGLCall(glDeleteShader(FragmentShader));
     CheckedGLCall(glDeleteShader(VertexShader));
     CheckedGLCall(glDeleteBuffers(1, &EBO));
     CheckedGLCall(glDeleteBuffers(1, &VBO));
-    CheckedGLCall(glDeleteVertexArrays(1, &VAO));
+#endif
 
     glfwTerminate();
     return 0;
